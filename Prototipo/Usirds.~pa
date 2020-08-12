@@ -1,0 +1,74 @@
+unit Usirds;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
+  ExtCtrls, ExtDlgs, Menus;
+
+type
+  TfrmSIRDS = class(TForm)
+    ImageM: TImage;
+    pmSIRDS: TPopupMenu;
+    SalvarImagem1: TMenuItem;
+    Voltar1: TMenuItem;
+    sdSIRDS: TSavePictureDialog;
+    pdSIRDS: TPrintDialog;
+    psdSIRDS: TPrinterSetupDialog;
+    Imprimir1: TMenuItem;
+    N1: TMenuItem;
+    Voltar2: TMenuItem;
+    Image1: TImage;
+    Image2: TImage;
+    procedure SalvarImagem1Click(Sender: TObject);
+    procedure Voltar2Click(Sender: TObject);
+    procedure Imprimir1Click(Sender: TObject);
+    procedure Voltar1Click(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+  end;
+
+var
+  frmSIRDS: TfrmSIRDS;
+
+implementation
+
+uses UStereo;
+
+{$R *.DFM}
+
+procedure TfrmSIRDS.SalvarImagem1Click(Sender: TObject);
+begin
+    if sdSIRDS.Execute then
+       Imagem.Picture.SaveToFile(sdSIRDS.FileName+'.bmp');
+end;
+
+procedure TfrmSIRDS.Voltar2Click(Sender: TObject);
+begin
+ Close;
+end;
+
+procedure TfrmSIRDS.Imprimir1Click(Sender: TObject);
+var
+ i: integer;
+begin
+   if pdSIRDS.Execute then
+   begin
+     Print;
+     if (pdSIRDS.Copies > 1) and
+         (Messagedlg('Você deseja imprimir mais '+
+          InttoStr(pdSIRDS.copies - 1)+'?',
+          mtConfirmation,[mbYes, mbNo],0)=mrYes) then
+         for i:=1 to pdSIRDS.copies - 1 do
+            Print;
+   end;
+end;
+
+procedure TfrmSIRDS.Voltar1Click(Sender: TObject);
+begin
+  psdSIRDS.Execute;
+end;
+
+end.

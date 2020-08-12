@@ -1,0 +1,355 @@
+unit UStereo;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
+  ExtCtrls, StdCtrls, Buttons, Spin, ComCtrls, ExtDlgs, Usirds;
+
+type
+  TfrmEstereograma = class(TForm)
+    btCena: TBitBtn;
+    btGerar: TBitBtn;
+    rgCor: TRadioGroup;
+    rgAlgo: TRadioGroup;
+    btSair: TBitBtn;
+    Panel1: TPanel;
+    Panel2: TPanel;
+    Imagem: TImage;
+    Panel3: TPanel;
+    Label1: TLabel;
+    seOcorr: TSpinEdit;
+    Label2: TLabel;
+    dgAbrirArquivo: TOpenPictureDialog;
+    Label3: TLabel;
+    Label4: TLabel;
+    seProf: TSpinEdit;
+    Panel4: TPanel;
+    lbMensagem: TLabel;
+    pbProgresso: TProgressBar;
+    btSobre: TButton;
+    cbTexto: TCheckBox;
+    procedure btCenaClick(Sender: TObject);
+    procedure btSairClick(Sender: TObject);
+    procedure btGerarClick(Sender: TObject);
+    procedure FormCreate(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+    procedure GerarMatrizRandomica;
+    procedure ArmazenarMapaProfundidade;
+    procedure GerarEstereograma1(Nome_Arquivo:string; Ocorr:byte; Prof:byte);
+    procedure GerarEstereograma2(Nome_Arquivo:string; Ocorr:byte);
+    function MontaLinha(x:Integer; y:Integer; Cor:dword):string;
+    procedure DesenhaEstereograma;
+  end;
+
+var
+  frmEstereograma: TfrmEstereograma;
+  MatrizRandomica,
+  MapadeProfundidade: array [0..639,0..479] of dword;
+
+
+implementation
+
+{$R *.DFM}
+
+procedure TfrmEstereograma.gerarMatrizRandomica;
+var
+  x,y: integer;
+  cinza: byte;
+begin
+  randomize;
+  for y:=0 to 479 do
+    for x:=0 to 639 do
+    begin
+      if rgCor.ItemIndex = 0 then
+      begin
+        cinza:=random(256);
+        MatrizRandomica[x,y]:= RGB(cinza,cinza,cinza);
+      end
+      else
+        MatrizRandomica[x,y]:= random(16777216);
+    end;
+
+end;
+
+procedure TfrmEstereograma.ArmazenarMapaProfundidade;
+var
+  x,y: integer;
+  R,G,B, cinza: byte;
+  cor: dword;
+begin
+  for y:=0 to 479 do
+    for x:=0 to 639 do
+    begin
+       Cor:=GetRValue(Imagem.Canvas.Pixels[x,y]);
+       R:=GetRValue(Cor);
+       G:=GetRValue(Cor);
+       B:=GetRValue(Cor);
+       If (R<>G) or (G<>B) then
+          Cinza:=trunc((R+G+B)/3)
+       else
+          Cinza:=R;
+       MapadeProfundidade[x,y]:=Cinza;
+    end;
+end;
+
+procedure TfrmEstereograma.GerarEstereograma1(Nome_Arquivo:string; Ocorr:byte; Prof:byte);
+var
+  Res_Monitor,
+  Largura,
+  Altura,
+  sep,
+  disObs,
+  ESQUERDA,
+  DIREITA,
+  Profundidade,
+  x, y: integer;
+  DEPENDENCIA : array [0..639] of integer;
+  CORES: array [0..639] of  dword;
+  disOlho: real;
+  Arquivo: TextFile;
+begin
+  Res_Monitor:= 75;
+  Largura:= 640;
+  Altura:= 480;
+  disObs:= 12 * Res_Monitor;
+  disOlho:= (2.5* Res_Monitor);
+
+  If cbTexto.Checked then
+  begin
+    AssignFile(Arquivo,Nome_Arquivo + '.txt');
+    Rewrite(Arquivo);
+  end;
+
+  for y:=0 to Altura-1 do
+  begin
+    for x:=0 to Largura - 1 do
+      DEPENDENCIA[x]:=x;
+
+    for x:=0 to Largura - 1 do
+    begin
+      Profundidade:= trunc(255 - MapadeProfundidade[x,y]*(256-Prof)/256);
+      sep:= trunc((disOlho*Profundidade)/(Profundidade+disObs));
+      ESQUERDA:= trunc(x - sep/2);
+      DIREITA:= x + sep;
+      if (ESQUERDA >= 0) and (DIREITA < largura) then
+         DEPENDENCIA[DIREITA]:= ESQUERDA;
+    end;
+
+    for x:=0 to Largura - 1 do
+    begin
+       if (DEPENDENCIA[x]=x) then
+          CORES[x]:= MatrizRandomica[x,y]
+       else
+          CORES[x]:= CORES[DEPENDENCIA[x]];
+       if Ocorr = seOcorr.Value then
+          FrmSIRDS.Imagem.Canvas.Pixels[x,y]:= CORES[x];
+       if cbTexto.Checked then
+          Writeln(Arquivo,MontaLinha(x,y,CORES[x]));
+    end;
+    pbPRogresso.Position:=pbPRogresso.Position + 1;
+   end;
+   if cbTexto.Checked then
+      CloseFile(Arquivo);
+   FrmSIRDS.ShowModal;
+end;
+
+procedure TFrmEstereograma.GerarEstereograma2(Nome_Arquivo:String; Ocorr:Byte);
+var
+ Res_Monitor,
+ disOlho,
+ largura,
+ altura,
+ x, y, sep,
+ ESQUERDA, DIREITA: integer;
+ mu, profundidade: real;
+ DEPENDENCIA,
+ CORES: array [0..639] of integer;
+ Arquivo: textfile;
+begin
+  Res_Monitor:=72;
+  disOlho:= trunc(2.5*Res_Monitor + 0.5);
+  mu:= 1/3;
+  Largura:=640;
+  Altura:= 480;
+
+  if cbTexto.Checked then
+  begin
+     AssignFile(Arquivo,Nome_Arquivo + '.txt');
+     Rewrite(Arquivo);
+  end;
+
+  for y:=0 to Altura - 1 do
+  begin
+    for x:=0 to Largura - 1 do
+      DEPENDENCIA[x]:=x;
+
+    for x:=0 to Largura - 1 do
+    begin
+      profundidade:=MapadeProfundidade[x,y]/255;
+      sep:= trunc( (1-mu*Profundidade)*disOlho/(2-mu*Profundidade));
+      ESQUERDA:= trunc(x - (sep/2));
+      DIREITA:= ESQUERDA + sep;
+      If (ESQUERDA > 0) and (DIREITA < largura) then
+         DEPENDENCIA[ESQUERDA]:= DIREITA;
+    end;
+
+    for x:=Largura - 1 downto 0 do
+    begin
+      If (DEPENDENCIA[x]=x) then
+         CORES[x]:= MatrizRandomica[x,y]
+      else
+         CORES[x]:= CORES[DEPENDENCIA[x]];
+      if Ocorr = seOcorr.Value then
+         FrmSIRDS.Imagem.Canvas.Pixels[x,y]:= CORES[x];
+      if cbTexto.Checked then
+        Writeln(Arquivo,MontaLinha(x,y,CORES[x]));
+    end;
+    pbPRogresso.Position:=pbPRogresso.Position + 1;
+  end;
+  if cbTexto.Checked then
+     CloseFile(Arquivo);
+  FrmSIRDS.ShowModal;
+
+end;
+
+
+function TfrmEstereograma.MontaLinha(x:Integer; y:Integer; Cor:dword):string;
+var
+  Linha: string[16];
+  Valor_Cor, Cor_Ajustada: string[8];
+  i, pos: byte;
+begin
+  case x of
+     0..9     : linha:= '00'+inttoStr(x);
+     10..99   : linha:= '0' +inttoStr(x);
+     100..639 :  linha:= inttoStr(x);
+  end;
+
+  case y of
+     0..9     : linha:= linha + ' 00' +inttoStr(y);
+     10..99   : linha:= linha + ' 0'  +inttoStr(y);
+     100..479 : linha:= linha + ' '   +inttoStr(y);
+  end;
+  Valor_Cor:= FloattoStr(Cor);
+
+  pos:=8;
+  Cor_Ajustada:='00000000';
+  for i:=Length(Valor_Cor) downto 1 do
+  begin
+     Cor_Ajustada[pos]:= Valor_Cor[i];
+     pos:= pos - 1;
+  end;
+  Linha:= Linha + ' ' + Cor_Ajustada;
+
+  MontaLinha:= Linha;
+
+end;
+
+procedure TfrmEstereograma.DesenhaEstereograma;
+var
+ x,y,i,k, Nro_Oco: integer;
+ NomeArq, Coord_Cor, Cor_String, X_String, Y_String: string;
+ Arquivo:textfile;
+ Pontos: array [0..639,0..479] of integer;
+
+begin
+
+    for y:=0 to 479 do
+      for x:=0 to 639 do
+        Pontos[x,y]:=0;
+
+    Nro_Oco:= seOcorr.Value;
+    for i:=1 to Nro_Oco do
+    begin
+      NomeArq:='Stereo_1_'+inttoStr(i)+'.txt';
+      AssignFile(Arquivo,NomeArq);
+      Reset(Arquivo);
+      While not EOF(Arquivo) do
+      begin
+        Readln(Arquivo, Coord_Cor);
+
+        X_String:='';
+        for k:=1 to 3 do
+          X_string:= X_String + Coord_Cor[k];
+
+        Y_String:='';
+        for k:=5 to 7 do
+          Y_String:= Y_String + Coord_Cor[k];
+
+        Cor_String:='';
+        for k:=9 to 16 do
+           Cor_String:=Cor_String + Coord_Cor[k];
+
+        x:=strtoInt(X_String);
+        y:=strtoInt(Y_String);
+        Pontos[x,y]:=Pontos[x,y]+StrtoInt(Cor_String);
+
+      end;
+      CloseFile(Arquivo);
+    end;
+
+    AssignFile(Arquivo,'Stereo1_Geral.txt');
+    Rewrite(Arquivo);
+    for y:=0 to 479 do
+      for x:=0 to 639 do
+      begin
+        Pontos[x,y]:=TRUNC(Pontos[x,y]/Nro_Oco);
+        Imagem.Canvas.Pixels[x,y]:= Pontos[x,y];
+        Writeln(Arquivo,MontaLinha(x,y,Pontos[x,y]));
+      end;
+     CloseFile(Arquivo);
+
+end;
+
+procedure TfrmEstereograma.btCenaClick(Sender: TObject);
+begin
+   if dgAbrirArquivo.Execute then
+      Imagem.Picture.LoadFromFile(dgAbrirArquivo.FileName);
+
+end;
+
+procedure TfrmEstereograma.btSairClick(Sender: TObject);
+begin
+   close;
+end;
+
+procedure TfrmEstereograma.btGerarClick(Sender: TObject);
+var
+  i: integer;
+  Nome: string;
+begin
+  lbMensagem.Caption:='Armazenando Mapa de Profundidade...';
+  ArmazenarMapaProfundidade;
+  for i:=1 to seOcorr.Value do
+  begin
+    pbPRogresso.Position:=1;
+    lbMensagem.Caption:='Criando arquivo da Ocorrencia '+ inttoStr(i)+'...';
+    GerarMatrizRandomica;
+    If rgAlgo.ItemIndex=0 then
+    begin
+      Nome:='Stereo_1_'+ inttoStr(i);
+      GerarEstereograma1(Nome,i, seProf.Value);
+    end
+    else
+    begin
+      Nome:='Stereo_2_'+ inttoStr(i);
+      GerarEstereograma2(Nome,i);
+    end;
+
+  end;
+  {lbMensagem.Caption:='Criando Arquivo Geral';
+  DesenhaEstereograma;
+  lbMensagem.Caption:='';}
+
+end;
+
+procedure TfrmEstereograma.FormCreate(Sender: TObject);
+begin
+   Sleep(3000);
+end;
+
+end.
